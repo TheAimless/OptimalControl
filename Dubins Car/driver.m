@@ -1,17 +1,22 @@
 clear;
-x_f = [4/5, -2/5]; x_start = [-3/5, 3/5]; % Final and starting position
-t = 3; delta = .1; J = t / delta; % Time variables
-sigma = 1; tau = .24; kappa = 1; eta = 0.2; % Hyperparams
+x_f = [2, 2, 3 * pi / 2]; x_start = [-1.5, 1.5, pi / 2]; % Final and starting position
+t = 6; delta = .1; J = t / delta; % Time variables
+sigma = 1; tau = .25; kappa = 1; eta = 0.2; gd_steps = 3; % Hyperparams
 eps = 1e-3; % Convergence
 k_max = 30000; % Max iterations
 A = 200; % Indicator approximation
+W = 2; % Max angular velocity
 
 % Obstacles
 %r=[]; %[2 2 2 2] / 5;
 %xC=[];%[-2 -2 3 3;
       %3 -1 3 -1] / 5;
-r=[.2];
-xC=[[0, 0.75]];
+r=[.2; .2; .2; .2; .2];
+xC=[0, 1.8;
+    0, .9;
+    -.5, 1.2;
+    .5, 1.4;
+    1, 2];
 %r = [];
 %xC = []; % Initialize obstacle center coordinates
 %xC = [pi/2 + 0.2, pi/2 + 0.2;
@@ -24,13 +29,13 @@ A_o = 100;
 O = zeros(J + 1, 1);
 gradO = zeros(J + 1, 2);
 
-x = zeros(J + 1, 2); % Time step j and 2 spatial dimensions
+x = zeros(J + 1, 3); % Time step j and 2 spatial dimensions
 for n = 1:J + 1
-    x(n, :) = (1 - ((n - 1) / J)) * x_start + ((n - 1) / J) * x_f + 0.2 * randn(1, 2);
+    x(n, :) = (1 - ((n - 1) / J)) * x_start + ((n - 1) / J) * x_f + 0.2 * randn(1, 3);
 end
 x(J + 1, :) = x_start;
 x(1, :) = x_f;
-p = zeros(J + 1, 2);
+p = zeros(J + 1, 3);
 z = x;
 u = 0;
 
@@ -48,11 +53,14 @@ for k = 1:k_max % Iterate
         else
             [D, m] = min(sqrt((x(j, 1) - xC(:, 1)).^2 + (x(j, 2) - xC(:, 2)).^2) - r);
             O(j) = 1/2 + (1/2) * tanh(A_o * D);
-            gradO(j, :) = ((A_o / 2) * (sech(A_o * D)^2) / (D + r(m) + 1e-8)) * (x(j, :) - xC(m, :));
+            gradO(j, :) = ((A_o / 2) * (sech(A_o * D)^2) / (D + r(m) + 1e-8)) * (x(j, 1:2) - xC(m, :));
         end
 
         beta = p(j, :) + sigma * (z(j, :) - z(j - 1, :));
-        p(j, :) = prox_p(delta * sigma * O(j), x, beta, x_f, A);
+        % if j == J + 1
+        %     0
+        % end
+        p(j, :) = prox_p(delta * sigma * O(j), x(j, :), beta, x_f, A, W);
         % Peterson's
         %p(j, :) = max(0, 1 - (sigma * O(j) * delta * r_xf(x(j, :), x_f, A) * V(x(j, :))) / norm(beta, 2)) * beta;
     end
@@ -60,7 +68,9 @@ for k = 1:k_max % Iterate
     x(1, :) = x_f; % g is infinity if x != x_f
     for j = 2:J
         v = x(j, :) - tau * (p(j, :) - p(j + 1, :));
-        x(j, :) = prox_x(x(j, :), eta, delta, tau, p(j, :), v, A, x_f, O(j), gradO(j, :));
+        for l = 1:gd_steps
+            x(j, :) = prox_x(x(j, :), eta, delta, tau, p(j, :), v, A, W, x_f, O(j), gradO(j, :));
+        end
         %Peterson's
         %x(j, :) = x(j, :) - eta * (-delta * r_xf(x(j, :), x_f, A) * norm(p(j, :), 2) ...
         %    * (O(j) * gradV(x(j, :))+V(x(j, :)) * gradO(j, :)) ...
@@ -81,7 +91,7 @@ for k = 1:k_max % Iterate
     u = 0;
     for j = 2:J+1
         u = u + dot(p(j, :), x(j, :) - x(j - 1, :))...
-            - delta * H(x(j, :), p(j, :), x_f, A, O(j));
+            - delta * H(x(j, :), p(j, :), x_f, A, W, O(j));
     end
     change_u = abs(u - u_prev);
 
@@ -102,7 +112,7 @@ u = 0;
 
 for j = 2:J + 1
     u = u + dot(p(j, :), x(j, :) - x(j - 1, :))...
-        - delta * H(x(j, :), p(j, :), x_f, A, O(j));
+        - delta * H(x(j, :), p(j, :), x_f, A, W, O(j));
 end
 u % Final cost
 plotV;

@@ -6,8 +6,10 @@ V_xy = @(xx, yy) 1 + 0.9 * sin(5 * xx) .* sin(5 * yy);
 
 [X, Y] = ndgrid(xx, yy);
 F = figure(2); clf; hold on;
+ax = gca;
+ax.Color = [1 1 1];
 Z = V_xy(X, Y);
-contourf(X, Y, Z, 50, 'EdgeColor', 'none');
+%contourf(X, Y, Z, 50, 'EdgeColor', 'none');
 xp = x(:, 1);
 yp = x(:, 2);
 circX = cos(0:2*pi/100:2*pi);
@@ -19,5 +21,4 @@ end
 plot(xp, yp, 'k', 'LineWidth', 2);
 xlabel('X-axis');
 ylabel('Y-axis');
-zlabel('V(x,y)');
-title('Surface Plot of V(x,y)');
+title('Trajectory Plot');
